@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Scanare Stoc</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --bg: #16181c;
+    --surface: #1f2227;
+    --surface-2: #262a30;
+    --line: #33383f;
+    --text: #edf0f2;
+    --muted: #8b9198;
+    --in: #4fb477;
+    --in-dim: #2c3f34;
+    --out: #c9553f;
+    --out-dim: #402d29;
+    --amber: #d9a441;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; height:100%; overflow-x:hidden;}
+  #root{min-height:100vh; display:flex; flex-direction:column;}
+
+  .topbar{
+    padding:18px 18px 14px;
+    border-bottom:1px solid var(--line);
+    display:flex; align-items:baseline; justify-content:space-between;
+  }
+  .topbar h1{
+    font-family:'Barlow Condensed', sans-serif;
+    font-weight:800;
+    font-size:26px;
+    letter-spacing:0.5px;
+    margin:0;
+    text-transform:uppercase;
+  }
+  .topbar .tag{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    color:var(--muted);
+  }
+
+  .mode-toggle{
+    display:flex; gap:2px;
+    margin:14px 18px 0;
+    background:var(--surface);
+    border-radius:10px;
+    padding:3px;
+    border:1px solid var(--line);
+  }
+  .mode-btn{
+    flex:1; padding:12px 8px;
+    border:none; border-radius:8px;
+    font-family:'Barlow Condensed', sans-serif;
+    font-weight:700; font-size:17px;
+    letter-spacing:0.5px;
+    text-transform:uppercase;
+    background:transparent;
+    color:var(--muted);
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    transition: background .15s, color .15s;
+  }
+  .mode-btn.active.in{ background:var(--in-dim); color:var(--in); }
+  .mode-btn.active.out{ background:var(--out-dim); color:var(--out); }
+  .mode-btn svg{width:16px; height:16px;}
+
+  main{flex:1; padding:16px 18px 90px; display:flex; flex-direction:column; gap:16px;}
+
+  .scanner-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    overflow:hidden;
+  }
+  .scanner-frame{
+    position:relative;
+    aspect-ratio: 1 / 1;
+    background:#000;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #reader{width:100%; height:100%;}
+  #reader video{object-fit:cover !important; width:100% !important; height:100% !important;}
+  .scan-placeholder{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:10px; color:var(--muted); padding:20px; text-align:center;
+  }
+  .scan-placeholder svg{width:40px; height:40px; opacity:0.6;}
+  .scan-placeholder .hint{font-size:13px; line-height:1.5;}
+
+  .corner{position:absolute; width:26px; height:26px; border-color:var(--amber); pointer-events:none; opacity:.9;}
+  .c-tl{top:14px; left:14px; border-top:3px solid; border-left:3px solid; border-radius:4px 0 0 0;}
+  .c-tr{top:14px; right:14px; border-top:3px solid; border-right:3px solid; border-radius:0 4px 0 0;}
+  .c-bl{bottom:14px; left:14px; border-bottom:3px solid; border-left:3px solid; border-radius:0 0 0 4px;}
+  .c-br{bottom:14px; right:14px; border-bottom:3px solid; border-right:3px solid; border-radius:0 0 4px 0;}
+
+  .scanner-controls{
+    display:flex; gap:10px; padding:12px;
+    border-top:1px solid var(--line);
+  }
+  .btn{
+    font-family:'Inter'; font-weight:600; font-size:14px;
+    padding:12px 14px; border-radius:10px; border:1px solid var(--line);
+    background:var(--surface-2); color:var(--text);
+  }
+  .btn:active{opacity:0.7;}
+  .btn.primary.in{background:var(--in); color:#0e1410; border-color:var(--in);}
+  .btn.primary.out{background:var(--out); color:#1b0f0c; border-color:var(--out);}
+  .btn.flex{flex:1;}
+
+  .manual-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px;
+  }
+  .manual-card h3{
+    margin:0 0 10px; font-family:'Barlow Condensed'; font-weight:700; font-size:15px;
+    color:var(--muted); text-transform:uppercase; letter-spacing:0.8px;
+  }
+  .manual-row{display:flex; gap:8px;}
+  .manual-row input[type=text]{
+    flex:1; background:var(--surface-2); border:1px solid var(--line); border-radius:10px;
+    padding:12px; color:var(--text); font-family:'JetBrains Mono'; font-size:15px;
+  }
+  .manual-row input[type=number]{
+    width:64px; background:var(--surface-2); border:1px solid var(--line); border-radius:10px;
+    padding:12px 8px; color:var(--text); font-family:'JetBrains Mono'; font-size:15px; text-align:center;
+  }
+  .manual-row input:focus{outline:1px solid var(--amber);}
+
+  .toast{
+    position:fixed; left:50%; bottom:100px; transform:translateX(-50%) translateY(10px);
+    background:var(--surface-2); border:1px solid var(--line); color:var(--text);
+    padding:10px 16px; border-radius:10px; font-size:14px; font-family:'JetBrains Mono';
+    display:flex; align-items:center; gap:8px;
+    opacity:0; transition:opacity .2s, transform .2s; pointer-events:none;
+    z-index:50; max-width:88%;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+  .toast .dot{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
+
+  .tabbar{
+    position:fixed; bottom:0; left:0; right:0;
+    background:var(--surface); border-top:1px solid var(--line);
+    display:flex; padding:6px 10px calc(6px + env(safe-area-inset-bottom));
+    z-index:40;
+  }
+  .tab-btn{
+    flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+    padding:8px 4px; background:transparent; border:none; color:var(--muted);
+    font-family:'Inter'; font-size:11px; font-weight:500;
+  }
+  .tab-btn.active{color:var(--amber);}
+  .tab-btn svg{width:20px; height:20px;}
+
+  section.view{display:flex; flex-direction:column; gap:14px;}
+
+  .section-title{
+    font-family:'Barlow Condensed'; font-weight:700; font-size:19px;
+    text-transform:uppercase; letter-spacing:0.5px; margin:2px 0 0;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .section-title .count{font-family:'JetBrains Mono'; font-size:12px; color:var(--muted); font-weight:400;}
+
+  .search-bar{
+    background:var(--surface); border:1px solid var(--line); border-radius:10px;
+    padding:10px 12px; display:flex; align-items:center; gap:8px;
+  }
+  .search-bar input{
+    flex:1; background:transparent; border:none; color:var(--text);
+    font-family:'JetBrains Mono'; font-size:14px;
+  }
+  .search-bar input:focus{outline:none;}
+  .search-bar svg{width:16px; height:16px; color:var(--muted); flex-shrink:0;}
+
+  .ticket{
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:12px 14px; display:flex; align-items:center; gap:12px;
+    position:relative;
+  }
+  .ticket .arrow{
+    width:32px; height:32px; border-radius:8px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .ticket .arrow.in{background:var(--in-dim); color:var(--in);}
+  .ticket .arrow.out{background:var(--out-dim); color:var(--out);}
+  .ticket .arrow svg{width:16px; height:16px;}
+  .ticket .body{flex:1; min-width:0;}
+  .ticket .code{
+    font-family:'JetBrains Mono'; font-size:15px; font-weight:700;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .ticket .meta{font-size:12px; color:var(--muted); margin-top:2px;}
+  .ticket .qty{
+    font-family:'JetBrains Mono'; font-weight:700; font-size:15px;
+    padding:2px 8px; border-radius:6px; flex-shrink:0;
+  }
+  .ticket .qty.in{color:var(--in); background:var(--in-dim);}
+  .ticket .qty.out{color:var(--out); background:var(--out-dim);}
+  .ticket .del{
+    background:transparent; border:none; color:var(--muted); padding:4px; flex-shrink:0;
+  }
+  .ticket .del svg{width:16px; height:16px;}
+
+  .day-label{
+    font-family:'JetBrains Mono'; font-size:11px; color:var(--muted);
+    text-transform:uppercase; letter-spacing:1px; margin-top:8px;
+  }
+
+  .stock-row{
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .stock-row .code{font-family:'JetBrains Mono'; font-weight:700; font-size:15px;}
+  .stock-row .detail{font-size:11px; color:var(--muted); margin-top:3px; font-family:'JetBrains Mono';}
+  .stock-row .net{
+    font-family:'JetBrains Mono'; font-weight:800; font-size:20px; flex-shrink:0;
+  }
+  .stock-row .net.pos{color:var(--in);}
+  .stock-row .net.neg{color:var(--out);}
+  .stock-row .net.zero{color:var(--muted);}
+
+  .empty{
+    text-align:center; padding:50px 20px; color:var(--muted);
+  }
+  .empty svg{width:36px; height:36px; opacity:.5; margin-bottom:10px;}
+  .empty p{font-size:13px; margin:0; line-height:1.6;}
+
+  .footnote{
+    text-align:center; font-size:11px; color:var(--muted); padding:6px 0 2px; font-family:'JetBrains Mono';
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+const {useState, useEffect, useRef, useMemo, useCallback} = React;
+
+const STORAGE_KEY = 'scan-entries';
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+function todayLabel(ts){
+  const d = new Date(ts);
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  const y = new Date(now); y.setDate(now.getDate()-1);
+  const isYesterday = d.toDateString() === y.toDateString();
+  if(isToday) return 'Azi';
+  if(isYesterday) return 'Ieri';
+  return d.toLocaleDateString('ro-RO', {day:'2-digit', month:'short'});
+}
+function timeLabel(ts){
+  return new Date(ts).toLocaleTimeString('ro-RO', {hour:'2-digit', minute:'2-digit'});
+}
+
+// ---- Icons (inline, minimal) ----
+const IconIn = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M12 4v16M6 14l6 6 6-6"/></svg>;
+const IconOut = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M12 20V4M6 10l6-6 6 6"/></svg>;
+const IconCamera = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>;
+const IconSearch = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>;
+const IconTrash = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>;
+const IconScanTab = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M3 12h18"/></svg>;
+const IconHistory = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>;
+const IconStock = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M3 3h18v18H3z" opacity="0"/><path d="M3 9.5 12 4l9 5.5V19a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>;
+const IconEmpty = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>;
+
+function App(){
+  const [entries, setEntries] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [saveErr, setSaveErr] = useState(false);
+  const [mode, setMode] = useState('in');
+  const [view, setView] = useState('scan');
+  const [scanning, setScanning] = useState(false);
+  const [scanErr, setScanErr] = useState(null);
+  const [qty, setQty] = useState(1);
+  const [manualCode, setManualCode] = useState('');
+  const [toast, setToast] = useState(null);
+  const [search, setSearch] = useState('');
+  const scannerRef = useRef(null);
+  const lastScanRef = useRef({code:null, t:0});
+  const modeRef = useRef(mode);
+  const qtyRef = useRef(qty);
+  useEffect(()=>{ modeRef.current = mode; }, [mode]);
+  useEffect(()=>{ qtyRef.current = qty; }, [qty]);
+
+  // load
+  useEffect(() => {
+    (async () => {
+      try{
+        const res = await window.storage.get(STORAGE_KEY, true);
+        if(res && res.value){
+          setEntries(JSON.parse(res.value));
+        }
+      }catch(e){
+        // no data yet, that's fine
+      }
+      setLoaded(true);
+    })();
+  }, []);
+
+  const persist = useCallback(async (next) => {
+    setEntries(next);
+    try{
+      const res = await window.storage.set(STORAGE_KEY, JSON.stringify(next), true);
+      setSaveErr(!res);
+    }catch(e){
+      setSaveErr(true);
+    }
+  }, []);
+
+  const showToast = (text, kind) => {
+    setToast({text, kind, id: uid()});
+  };
+  useEffect(() => {
+    if(!toast) return;
+    const t = setTimeout(() => setToast(null), 1800);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const addEntry = useCallback((code, qtyVal, typeVal) => {
+    const clean = (code || '').trim();
+    if(!clean) return;
+    const entry = { id: uid(), code: clean, qty: Math.max(1, parseInt(qtyVal,10)||1), type: typeVal, ts: Date.now() };
+    setEntries(prev => {
+      const next = [entry, ...prev];
+      persist(next);
+      return next;
+    });
+    if(navigator.vibrate) navigator.vibrate(40);
+    showToast(clean, typeVal);
+  }, [persist]);
+
+  const deleteEntry = (id) => {
+    setEntries(prev => {
+      const next = prev.filter(e => e.id !== id);
+      persist(next);
+      return next;
+    });
+  };
+
+  // ---- Camera scanner lifecycle ----
+  useEffect(() => {
+    if(view !== 'scan' || !scanning) return;
+    let cancelled = false;
+    setScanErr(null);
+
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      setScanErr('Browserul acesta nu permite acces la cameră aici. Deschide fișierul într-un browser normal (Chrome/Safari), nu din previzualizarea Claude.');
+      setScanning(false);
+      return;
+    }
+
+    const qr = new Html5Qrcode("reader", { verbose: false });
+    scannerRef.current = qr;
+
+    const formats = window.Html5QrcodeSupportedFormats ? [
+      Html5QrcodeSupportedFormats.QR_CODE,
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.UPC_A,
+      Html5QrcodeSupportedFormats.UPC_E,
+      Html5QrcodeSupportedFormats.ITF,
+    ] : undefined;
+
+    const config = { fps: 10, qrbox: { width: 240, height: 240 }, formatsToSupport: formats, aspectRatio: 1 };
+
+    const onSuccess = (decodedText) => {
+      const now = Date.now();
+      if(lastScanRef.current.code === decodedText && now - lastScanRef.current.t < 2500) return;
+      lastScanRef.current = { code: decodedText, t: now };
+      addEntry(decodedText, qtyRef.current, modeRef.current);
+    };
+    const onFail = () => {};
+
+    const describeErr = (err) => {
+      const name = (err && (err.name || err.message || String(err))) || '';
+      if(/NotAllowedError|Permission/i.test(name)) return 'Acces la cameră refuzat. Verifică permisiunile browserului pentru acest site (Setări → Site → Cameră) și încearcă din nou.';
+      if(/NotFoundError|no camera/i.test(name)) return 'Nu am găsit nicio cameră disponibilă pe acest device.';
+      if(/NotReadableError/i.test(name)) return 'Camera e folosită de altă aplicație. Închide alte apps care ar putea folosi camera.';
+      if(/NotSupportedError|insecure/i.test(name)) return 'Camera necesită o conexiune securizată (https). Deschide link-ul original din Claude într-un browser, nu un fișier descărcat local.';
+      return 'Nu am putut porni camera. Deschide fișierul într-un browser normal (Chrome/Safari), nu din previzualizarea Claude.';
+    };
+
+    qr.start({ facingMode: "environment" }, config, onSuccess, onFail)
+      .catch((err1) => {
+        // fallback: try to enumerate cameras
+        Html5Qrcode.getCameras().then(cams => {
+          if(cancelled || !cams || !cams.length){
+            if(!cancelled){ setScanErr(describeErr(err1)); setScanning(false); }
+            return;
+          }
+          const back = cams.find(c => /back|rear|environment/i.test(c.label)) || cams[cams.length-1];
+          qr.start({ deviceId: { exact: back.id } }, config, onSuccess, onFail).catch((err2)=>{
+            if(!cancelled){ setScanErr(describeErr(err2)); setScanning(false); }
+          });
+        }).catch((err3) => {
+          if(!cancelled){ setScanErr(describeErr(err3 || err1)); setScanning(false); }
+        });
+      });
+
+    return () => {
+      cancelled = true;
+      if(scannerRef.current){
+        const inst = scannerRef.current;
+        scannerRef.current = null;
+        try{
+          inst.stop().then(()=>inst.clear()).catch(()=>{});
+        }catch(e){}
+      }
+    };
+  }, [scanning, view, addEntry]);
+
+  useEffect(() => {
+    if(view !== 'scan' && scanning) setScanning(false);
+  }, [view]);
+
+  const handleManualAdd = () => {
+    if(!manualCode.trim()) return;
+    addEntry(manualCode, qty, mode);
+    setManualCode('');
+  };
+
+  const filteredHistory = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return entries.filter(e => !q || e.code.toLowerCase().includes(q));
+  }, [entries, search]);
+
+  const grouped = useMemo(() => {
+    const g = [];
+    let cur = null;
+    for(const e of filteredHistory){
+      const label = todayLabel(e.ts);
+      if(!cur || cur.label !== label){
+        cur = { label, items: [] };
+        g.push(cur);
+      }
+      cur.items.push(e);
+    }
+    return g;
+  }, [filteredHistory]);
+
+  const stockList = useMemo(() => {
+    const map = {};
+    for(const e of entries){
+      if(!map[e.code]) map[e.code] = { code: e.code, in: 0, out: 0, last: e.ts };
+      if(e.type === 'in') map[e.code].in += e.qty; else map[e.code].out += e.qty;
+      if(e.ts > map[e.code].last) map[e.code].last = e.ts;
+    }
+    let list = Object.values(map).map(x => ({...x, net: x.in - x.out}));
+    const q = search.trim().toLowerCase();
+    if(q) list = list.filter(x => x.code.toLowerCase().includes(q));
+    list.sort((a,b) => b.last - a.last);
+    return list;
+  }, [entries, search]);
+
+  return (
+    <React.Fragment>
+      <div className="topbar">
+        <h1>Scanare Stoc</h1>
+        <span className="tag">{entries.length} mișcări</span>
+      </div>
+
+      <div className="mode-toggle">
+        <button className={"mode-btn in" + (mode==='in' ? ' active' : '')} onClick={()=>setMode('in')}>
+          <IconIn/> Intrare
+        </button>
+        <button className={"mode-btn out" + (mode==='out' ? ' active' : '')} onClick={()=>setMode('out')}>
+          <IconOut/> Ieșire
+        </button>
+      </div>
+
+      <main>
+        {view === 'scan' && (
+          <section className="view">
+            <div className="scanner-card">
+              <div className="scanner-frame">
+                <div id="reader"></div>
+                {!scanning && (
+                  <div className="scan-placeholder">
+                    <IconCamera/>
+                    {scanErr ? (
+                      <div className="hint" style={{color:'var(--out)'}}>{scanErr}</div>
+                    ) : (
+                      <div className="hint">Apasă „Pornește camera” și îndreaptă spre codul de bare sau QR de pe produs.<br/>Modul curent: <b style={{color: mode==='in' ? 'var(--in)' : 'var(--out)'}}>{mode==='in' ? 'INTRARE' : 'IEȘIRE'}</b></div>
+                    )}
+                  </div>
+                )}
+                {scanning && (
+                  <React.Fragment>
+                    <div className="corner c-tl"></div>
+                    <div className="corner c-tr"></div>
+                    <div className="corner c-bl"></div>
+                    <div className="corner c-br"></div>
+                  </React.Fragment>
+                )}
+              </div>
+              <div className="scanner-controls">
+                <button
+                  className={"btn flex primary " + mode}
+                  onClick={() => setScanning(s => !s)}
+                >
+                  {scanning ? 'Oprește camera' : 'Pornește camera'}
+                </button>
+                <div style={{display:'flex', alignItems:'center', gap:6}}>
+                  <button className="btn" onClick={()=>setQty(q=>Math.max(1,q-1))} style={{padding:'12px 14px'}}>–</button>
+                  <span style={{fontFamily:"'JetBrains Mono'", minWidth:22, textAlign:'center'}}>{qty}</span>
+                  <button className="btn" onClick={()=>setQty(q=>q+1)} style={{padding:'12px 14px'}}>+</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="manual-card">
+              <h3>Introducere manuală</h3>
+              <div className="manual-row">
+                <input
+                  type="text"
+                  inputMode="text"
+                  placeholder="Cod produs / SKU"
+                  value={manualCode}
+                  onChange={e=>setManualCode(e.target.value)}
+                  onKeyDown={e=>{ if(e.key==='Enter') handleManualAdd(); }}
+                />
+                <button className={"btn primary " + mode} onClick={handleManualAdd}>Adaugă</button>
+              </div>
+            </div>
+
+            {saveErr && <div className="footnote" style={{color:'var(--out)'}}>Salvarea a eșuat — verifică conexiunea. Datele rămân doar pe acest ecran.</div>}
+            <div className="footnote">Datele sunt comune tuturor celor care deschid acest link (nu necesită cont).</div>
+          </section>
+        )}
+
+        {view === 'history' && (
+          <section className="view">
+            <div className="section-title">Istoric<span className="count">{filteredHistory.length}</span></div>
+            <div className="search-bar">
+              <IconSearch/>
+              <input placeholder="Caută după cod..." value={search} onChange={e=>setSearch(e.target.value)} />
+            </div>
+            {!loaded ? (
+              <div className="empty"><p>Se încarcă...</p></div>
+            ) : grouped.length === 0 ? (
+              <div className="empty">
+                <IconEmpty/>
+                <p>Nicio mișcare încă.<br/>Scanează primul produs din tab-ul Scanează.</p>
+              </div>
+            ) : grouped.map(g => (
+              <React.Fragment key={g.label}>
+                <div className="day-label">{g.label}</div>
+                {g.items.map(e => (
+                  <div className="ticket" key={e.id}>
+                    <div className={"arrow " + e.type}>{e.type==='in' ? <IconIn/> : <IconOut/>}</div>
+                    <div className="body">
+                      <div className="code">{e.code}</div>
+                      <div className="meta">{timeLabel(e.ts)} · {e.type==='in' ? 'intrare' : 'ieșire'}</div>
+                    </div>
+                    <div className={"qty " + e.type}>{e.type==='in' ? '+' : '–'}{e.qty}</div>
+                    <button className="del" onClick={()=>deleteEntry(e.id)}><IconTrash/></button>
+                  </div>
+                ))}
+              </React.Fragment>
+            ))}
+          </section>
+        )}
+
+        {view === 'stock' && (
+          <section className="view">
+            <div className="section-title">Stoc curent<span className="count">{stockList.length} coduri</span></div>
+            <div className="search-bar">
+              <IconSearch/>
+              <input placeholder="Caută după cod..." value={search} onChange={e=>setSearch(e.target.value)} />
+            </div>
+            {!loaded ? (
+              <div className="empty"><p>Se încarcă...</p></div>
+            ) : stockList.length === 0 ? (
+              <div className="empty">
+                <IconEmpty/>
+                <p>Nimic scanat încă.</p>
+              </div>
+            ) : stockList.map(s => (
+              <div className="stock-row" key={s.code}>
+                <div>
+                  <div className="code">{s.code}</div>
+                  <div className="detail">{s.in} intrări · {s.out} ieșiri</div>
+                </div>
+                <div className={"net " + (s.net > 0 ? 'pos' : s.net < 0 ? 'neg' : 'zero')}>{s.net > 0 ? '+' : ''}{s.net}</div>
+              </div>
+            ))}
+            <div className="footnote">Stocul e calculat ca sumă intrări minus ieșiri, pe baza scanărilor. Nu reflectă stocul din PrestaShop.</div>
+          </section>
+        )}
+      </main>
+
+      {toast && (
+        <div className={"toast show"}>
+          <span className="dot" style={{background: toast.kind==='in' ? 'var(--in)' : 'var(--out)'}}></span>
+          {toast.kind==='in' ? 'Intrare' : 'Ieșire'} · {toast.text}
+        </div>
+      )}
+
+      <div className="tabbar">
+        <button className={"tab-btn" + (view==='scan'?' active':'')} onClick={()=>setView('scan')}>
+          <IconScanTab/> Scanează
+        </button>
+        <button className={"tab-btn" + (view==='history'?' active':'')} onClick={()=>setView('history')}>
+          <IconHistory/> Istoric
+        </button>
+        <button className={"tab-btn" + (view==='stock'?' active':'')} onClick={()=>setView('stock')}>
+          <IconStock/> Stoc
+        </button>
+      </div>
+    </React.Fragment>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
