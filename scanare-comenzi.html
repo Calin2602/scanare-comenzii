@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Comenzi &amp; Scanare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+  :root{
+    --bg: #16181c;
+    --surface: #1f2227;
+    --surface-2: #262a30;
+    --line: #33383f;
+    --text: #edf0f2;
+    --muted: #8b9198;
+    --in: #4fb477;
+    --in-dim: #2c3f34;
+    --out: #c9553f;
+    --out-dim: #402d29;
+    --amber: #d9a441;
+    --amber-dim: #3f3222;
+    --blue: #5b8fc7;
+    --blue-dim: #26333f;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; height:100%; overflow-x:hidden;}
+  #root{min-height:100vh; display:flex; flex-direction:column;}
+
+  .topbar{
+    padding:18px 18px 14px;
+    border-bottom:1px solid var(--line);
+    display:flex; align-items:baseline; justify-content:space-between;
+  }
+  .topbar h1{
+    font-family:'Barlow Condensed', sans-serif;
+    font-weight:800; font-size:24px; letter-spacing:0.5px; margin:0; text-transform:uppercase;
+  }
+  .topbar .tag{font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--muted);}
+
+  main{flex:1; padding:16px 18px 90px; display:flex; flex-direction:column; gap:14px;}
+
+  .btn{
+    font-family:'Inter'; font-weight:600; font-size:14px;
+    padding:12px 14px; border-radius:10px; border:1px solid var(--line);
+    background:var(--surface-2); color:var(--text);
+  }
+  .btn:active{opacity:0.7;}
+  .btn.primary{background:var(--amber); color:#241c0a; border-color:var(--amber);}
+  .btn.good{background:var(--in); color:#0e1410; border-color:var(--in);}
+  .btn.ghost{background:transparent; border-color:var(--line); color:var(--muted);}
+  .btn.flex{flex:1; text-align:center;}
+  .btn.sm{padding:8px 10px; font-size:12px;}
+  .btn:disabled{opacity:0.4;}
+
+  .fab{
+    position:fixed; right:18px; bottom:88px; z-index:35;
+    width:52px; height:52px; border-radius:50%;
+    background:var(--amber); color:#241c0a; border:none;
+    font-size:28px; line-height:1; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 6px 18px rgba(0,0,0,0.4);
+  }
+
+  /* --- Order cards --- */
+  .search-bar{
+    background:var(--surface); border:1px solid var(--line); border-radius:10px;
+    padding:10px 12px; display:flex; align-items:center; gap:8px;
+  }
+  .search-bar input{flex:1; background:transparent; border:none; color:var(--text); font-family:'JetBrains Mono'; font-size:14px;}
+  .search-bar input:focus{outline:none;}
+  .search-bar svg{width:16px; height:16px; color:var(--muted); flex-shrink:0;}
+
+  .filter-row{display:flex; gap:6px; overflow-x:auto; padding-bottom:2px;}
+  .filter-chip{
+    flex-shrink:0; padding:7px 12px; border-radius:999px; border:1px solid var(--line);
+    background:var(--surface); color:var(--muted); font-size:12px; font-family:'Inter'; font-weight:600;
+    white-space:nowrap;
+  }
+  .filter-chip.active{background:var(--amber-dim); color:var(--amber); border-color:var(--amber);}
+
+  .order-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:14px; display:flex; flex-direction:column; gap:10px;
+  }
+  .order-head{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
+  .order-id{font-family:'JetBrains Mono'; font-weight:700; font-size:16px;}
+  .order-client{font-size:12px; color:var(--muted); margin-top:2px;}
+  .status-badge{
+    font-family:'Barlow Condensed'; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.4px;
+    padding:4px 9px; border-radius:6px; flex-shrink:0; white-space:nowrap;
+  }
+  .status-badge.noua{background:var(--surface-2); color:var(--muted);}
+  .status-badge.partial{background:var(--amber-dim); color:var(--amber);}
+  .status-badge.gata{background:var(--in-dim); color:var(--in);}
+  .status-badge.expediata{background:var(--blue-dim); color:var(--blue);}
+
+  .item-row{
+    display:flex; align-items:center; gap:8px; padding:7px 0; border-top:1px solid var(--line);
+  }
+  .item-row:first-of-type{border-top:none;}
+  .item-check{
+    width:20px; height:20px; border-radius:6px; flex-shrink:0; border:1.5px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .item-check.checked{background:var(--in); border-color:var(--in); color:#0e1410;}
+  .item-check svg{width:13px; height:13px;}
+  .item-mpn{font-family:'JetBrains Mono'; font-size:13px; flex:1; word-break:break-all;}
+  .item-mpn.received{color:var(--muted); text-decoration:line-through;}
+  .item-del{background:transparent; border:none; color:var(--muted); padding:2px; flex-shrink:0;}
+  .item-del svg{width:14px; height:14px;}
+
+  .order-foot{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .return-pill{
+    font-family:'JetBrains Mono'; font-size:11px; padding:4px 9px; border-radius:6px;
+  }
+  .return-pill.ok{background:var(--in-dim); color:var(--in);}
+  .return-pill.soon{background:var(--amber-dim); color:var(--amber);}
+  .return-pill.over{background:var(--out-dim); color:var(--out);}
+
+  .empty{text-align:center; padding:50px 20px; color:var(--muted);}
+  .empty svg{width:36px; height:36px; opacity:.5; margin-bottom:10px;}
+  .empty p{font-size:13px; margin:0; line-height:1.6;}
+
+  /* --- Scanner --- */
+  .scanner-card{background:var(--surface); border:1px solid var(--line); border-radius:16px; overflow:hidden;}
+  .scanner-frame{position:relative; aspect-ratio: 1/1; background:#000; display:flex; align-items:center; justify-content:center;}
+  #reader{width:100%; height:100%;}
+  #reader video{object-fit:cover !important; width:100% !important; height:100% !important;}
+  .scanner-frame video{object-fit:cover !important; width:100% !important; height:100% !important;}
+  .scan-placeholder{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--muted); padding:20px; text-align:center;}
+  .scan-placeholder svg{width:40px; height:40px; opacity:0.6;}
+  .scan-placeholder .hint{font-size:13px; line-height:1.5;}
+  .corner{position:absolute; width:26px; height:26px; border-color:var(--amber); pointer-events:none; opacity:.9;}
+  .c-tl{top:14px; left:14px; border-top:3px solid; border-left:3px solid; border-radius:4px 0 0 0;}
+  .c-tr{top:14px; right:14px; border-top:3px solid; border-right:3px solid; border-radius:0 4px 0 0;}
+  .c-bl{bottom:14px; left:14px; border-bottom:3px solid; border-left:3px solid; border-radius:0 0 0 4px;}
+  .c-br{bottom:14px; right:14px; border-bottom:3px solid; border-right:3px solid; border-radius:0 0 4px 0;}
+  .scanner-controls{display:flex; gap:10px; padding:12px; border-top:1px solid var(--line);}
+
+  .manual-card{background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px;}
+  .manual-card h3{margin:0 0 10px; font-family:'Barlow Condensed'; font-weight:700; font-size:15px; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px;}
+  .manual-row{display:flex; gap:8px;}
+  .manual-row input[type=text]{flex:1; background:var(--surface-2); border:1px solid var(--line); border-radius:10px; padding:12px; color:var(--text); font-family:'JetBrains Mono'; font-size:15px;}
+  .manual-row input:focus{outline:1px solid var(--amber);}
+
+  .footnote{text-align:center; font-size:11px; color:var(--muted); padding:6px 0 2px; font-family:'JetBrains Mono'; line-height:1.6;}
+
+  .toast{
+    position:fixed; left:50%; bottom:100px; transform:translateX(-50%) translateY(10px);
+    background:var(--surface-2); border:1px solid var(--line); color:var(--text);
+    padding:10px 16px; border-radius:10px; font-size:13px; font-family:'JetBrains Mono';
+    display:flex; align-items:center; gap:8px; opacity:0; transition:opacity .2s, transform .2s; pointer-events:none;
+    z-index:60; max-width:88%; text-align:left;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+  .toast .dot{width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:2px;}
+
+  .tabbar{position:fixed; bottom:0; left:0; right:0; background:var(--surface); border-top:1px solid var(--line); display:flex; padding:6px 10px calc(6px + env(safe-area-inset-bottom)); z-index:40;}
+  .tab-btn{flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 4px; background:transparent; border:none; color:var(--muted); font-family:'Inter'; font-size:11px; font-weight:500;}
+  .tab-btn.active{color:var(--amber);}
+  .tab-btn svg{width:20px; height:20px;}
+
+  /* --- Modal (new order / picker) --- */
+  .overlay{position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:70; display:flex; align-items:flex-end;}
+  .sheet{
+    background:var(--bg); border-top:1px solid var(--line); border-radius:18px 18px 0 0;
+    width:100%; max-height:88vh; overflow-y:auto; padding:18px; display:flex; flex-direction:column; gap:14px;
+  }
+  .sheet-head{display:flex; justify-content:space-between; align-items:center;}
+  .sheet-head h2{font-family:'Barlow Condensed'; font-weight:800; font-size:20px; text-transform:uppercase; margin:0; letter-spacing:0.4px;}
+  .sheet-close{background:var(--surface-2); border:none; color:var(--text); width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center;}
+  .sheet-close svg{width:16px; height:16px;}
+  .field-label{font-family:'Barlow Condensed'; font-weight:700; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px;}
+  .field input[type=text]{width:100%; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:12px; color:var(--text); font-family:'Inter'; font-size:15px;}
+  .field input[type=text]:focus{outline:1px solid var(--amber);}
+  .mpn-list{display:flex; flex-direction:column; gap:6px;}
+  .mpn-chip{
+    display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:8px 10px;
+  }
+  .mpn-chip span{font-family:'JetBrains Mono'; font-size:13px; flex:1; word-break:break-all;}
+  .add-mpn-row{display:flex; gap:8px;}
+  .pick-option{
+    background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:12px; text-align:left; display:flex; flex-direction:column; gap:2px;
+  }
+  .pick-option b{font-family:'JetBrains Mono'; font-size:14px;}
+  .pick-option span{font-size:11px; color:var(--muted);}
+
+  .ocr-btn{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    width:100%; padding:14px; border-radius:10px; border:1px dashed var(--amber);
+    background:var(--amber-dim); color:var(--amber); font-family:'Inter'; font-weight:600; font-size:14px;
+  }
+  .ocr-btn:disabled{opacity:0.6;}
+  .spinner{
+    width:15px; height:15px; border-radius:50%; border:2px solid rgba(217,164,65,0.3); border-top-color:var(--amber);
+    animation:spin 0.7s linear infinite; flex-shrink:0;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .ocr-note{font-size:11px; color:var(--muted); text-align:center; line-height:1.5;}
+  .ocr-raw{
+    background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:10px;
+    font-family:'JetBrains Mono'; font-size:10px; color:var(--muted); max-height:100px; overflow-y:auto; white-space:pre-wrap;
+  }
+  textarea.addr{
+    width:100%; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:12px;
+    color:var(--text); font-family:'Inter'; font-size:14px; resize:vertical; min-height:56px;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+const {useState, useEffect, useRef, useMemo, useCallback} = React;
+
+const STORAGE_KEY = 'orders-v1';
+const RETURN_DAYS = 14;
+const DAY_MS = 24*60*60*1000;
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function fmtDate(ts){ if(!ts) return ''; return new Date(ts).toLocaleDateString('ro-RO', {day:'2-digit', month:'short', year:'numeric'}); }
+function fmtDateTime(ts){ if(!ts) return ''; return new Date(ts).toLocaleDateString('ro-RO', {day:'2-digit', month:'short'}) + ' ' + new Date(ts).toLocaleTimeString('ro-RO', {hour:'2-digit', minute:'2-digit'}); }
+
+function orderStatus(order){
+  if(order.shippedAt) return 'expediata';
+  if(order.items.length === 0) return 'noua';
+  const receivedCount = order.items.filter(i => i.received).length;
+  if(receivedCount === 0) return 'noua';
+  if(receivedCount < order.items.length) return 'partial';
+  return 'gata';
+}
+const STATUS_LABEL = { noua:'Nouă', partial:'Parțial primită', gata:'Gata de expediere', expediata:'Expediată' };
+
+function returnInfo(order){
+  if(!order.shippedAt) return null;
+  const deadline = order.shippedAt + RETURN_DAYS*DAY_MS;
+  const daysLeft = Math.ceil((deadline - Date.now()) / DAY_MS);
+  return { deadline, daysLeft };
+}
+
+function dedupeLine(line){
+  const t = line.trim();
+  const words = t.split(/\s+/);
+  const n = words.length;
+  if(n >= 2 && n % 2 === 0){
+    const half = n/2;
+    const firstHalf = words.slice(0,half).join(' ').toLowerCase();
+    const secondHalf = words.slice(half).join(' ').toLowerCase();
+    if(firstHalf === secondHalf) return words.slice(0,half).join(' ');
+  }
+  return t;
+}
+
+function isolateLeftColumn(rawLine){
+  const parts = rawLine.split(/\s{2,}/).map(p=>p.trim()).filter(Boolean);
+  if(parts.length >= 2) return parts[0];
+  return dedupeLine(rawLine);
+}
+
+// ---- OCR parsing: pull order no / client / phone / address out of raw recognized text ----
+function parseOrderText(text){
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  let orderNo = '', client = '', phone = '', address = '';
+
+  const hashMatch = text.match(/#\s*(\d{2,8})/);
+  if(hashMatch) orderNo = hashMatch[1];
+
+  const hashLineIdx = lines.findIndex(l => /#\s*\d{2,8}/.test(l));
+  if(hashLineIdx >= 0){
+    const c = lines[hashLineIdx].replace(/#\s*\d{2,8}/, '').trim();
+    if(c.length > 1 && c.length < 60) client = dedupeLine(c);
+  }
+
+  const phoneMatch = text.match(/(?:\+?4?0)?7\d{8}/);
+  if(phoneMatch) phone = phoneMatch[0];
+
+  const addrStart = lines.findIndex(l => /adresa de livrare/i.test(l));
+  if(addrStart >= 0){
+    const addrLines = [];
+    for(let i = addrStart+1; i < lines.length; i++){
+      if(/nota privat|mesaje/i.test(lines[i])) break;
+      if(addrLines.length >= 7) break;
+      const col = isolateLeftColumn(lines[i]);
+      if(/adresa de facturare/i.test(col)) continue;
+      if(col) addrLines.push(col);
+    }
+    address = addrLines.join(', ');
+  }
+  return { orderNo, client, phone, address };
+}
+
+function parseMpnText(text){
+  const raw = text.trim();
+  // if an "MPN" label is present, take everything after it as the candidate
+  const labeled = raw.match(/MPN[:\s]*([A-Z0-9][A-Z0-9\-\.\/\s]{2,30})/i);
+  let candidate = labeled ? labeled[1] : raw;
+  // collapse all whitespace — a close-up crop of just the code shouldn't have real spaces,
+  // so any space is almost always an OCR mistake splitting the code; merge it back together
+  candidate = candidate.replace(/\s+/g, '');
+  candidate = candidate.replace(/[^A-Za-z0-9\-\.\/]/g, '');
+  return candidate;
+}
+
+// ---- Icons ----
+const IconCheck = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M20 6 9 17l-5-5"/></svg>;
+const IconCamera = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>;
+const IconSearch = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>;
+const IconTrash = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>;
+const IconOrders = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M3 9.5 12 4l9 5.5V19a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>;
+const IconScan = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M3 12h18"/></svg>;
+const IconClose = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M18 6 6 18M6 6l12 12"/></svg>;
+const IconEmpty = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>;
+const IconTruck = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><rect x="1" y="6" width="14" height="11" rx="1"/><path d="M15 9h4l3 3v5h-7z"/><circle cx="6" cy="19" r="1.6"/><circle cx="17" cy="19" r="1.6"/></svg>;
+
+// ---- Camera scan hook: mounts a scanner into a given DOM id and calls onCode(text) ----
+function useScanner(elementId, active, onCode){
+  const scannerRef = useRef(null);
+  const lastRef = useRef({code:null, t:0});
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    if(!active) return;
+    let cancelled = false;
+    setErr(null);
+
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      setErr('Browserul acesta nu permite acces la cameră aici. Deschide pagina într-un browser normal (Chrome/Safari).');
+      return;
+    }
+
+    const qr = new Html5Qrcode(elementId, { verbose: false });
+    scannerRef.current = qr;
+
+    const formats = window.Html5QrcodeSupportedFormats ? [
+      Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39, Html5QrcodeSupportedFormats.UPC_A,
+      Html5QrcodeSupportedFormats.UPC_E, Html5QrcodeSupportedFormats.ITF,
+    ] : undefined;
+    const config = { fps: 10, qrbox: { width: 240, height: 240 }, formatsToSupport: formats, aspectRatio: 1 };
+
+    const onSuccess = (decodedText) => {
+      const now = Date.now();
+      if(lastRef.current.code === decodedText && now - lastRef.current.t < 2000) return;
+      lastRef.current = { code: decodedText, t: now };
+      onCode(decodedText);
+    };
+    const onFail = () => {};
+
+    const describeErr = (e) => {
+      const name = (e && (e.name || e.message || String(e))) || '';
+      if(/NotAllowedError|Permission/i.test(name)) return 'Acces la cameră refuzat. Verifică permisiunile browserului pentru acest site.';
+      if(/NotFoundError|no camera/i.test(name)) return 'Nu am găsit nicio cameră disponibilă.';
+      if(/NotReadableError/i.test(name)) return 'Camera e folosită de altă aplicație.';
+      if(/NotSupportedError|insecure/i.test(name)) return 'Camera necesită o conexiune securizată (https).';
+      return 'Nu am putut porni camera.';
+    };
+
+    qr.start({ facingMode: "environment" }, config, onSuccess, onFail).catch((err1) => {
+      Html5Qrcode.getCameras().then(cams => {
+        if(cancelled || !cams || !cams.length){ if(!cancelled) setErr(describeErr(err1)); return; }
+        const back = cams.find(c => /back|rear|environment/i.test(c.label)) || cams[cams.length-1];
+        qr.start({ deviceId: { exact: back.id } }, config, onSuccess, onFail).catch((err2)=>{
+          if(!cancelled) setErr(describeErr(err2));
+        });
+      }).catch((err3) => { if(!cancelled) setErr(describeErr(err3||err1)); });
+    });
+
+    return () => {
+      cancelled = true;
+      const inst = scannerRef.current;
+      scannerRef.current = null;
+      if(inst){ try{ inst.stop().then(()=>inst.clear()).catch(()=>{}); }catch(e){} }
+    };
+  }, [active, elementId]);
+
+  return err;
+}
+
+function ScannerBlock({active, onCode, readerId, hintText}){
+  const err = useScanner(readerId, active, onCode);
+  return (
+    <div className="scanner-frame">
+      <div id={readerId}></div>
+      {!active && (
+        <div className="scan-placeholder"><IconCamera/><div className="hint">{hintText}</div></div>
+      )}
+      {active && err && (
+        <div className="scan-placeholder"><IconCamera/><div className="hint" style={{color:'var(--out)'}}>{err}</div></div>
+      )}
+      {active && !err && (
+        <React.Fragment>
+          <div className="corner c-tl"></div><div className="corner c-tr"></div>
+          <div className="corner c-bl"></div><div className="corner c-br"></div>
+        </React.Fragment>
+      )}
+    </div>
+  );
+}
+
+const SUPPLIERS = ['Inter Cars', 'Elit', 'Materom', 'Augsburg', 'Conex', 'Autototal'];
+
+function App(){
+  const [orders, setOrders] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [saveErr, setSaveErr] = useState(false);
+  const [view, setView] = useState('orders');
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('toate');
+  const [toast, setToast] = useState(null);
+  const [showNewOrder, setShowNewOrder] = useState(false);
+  const [scanActive, setScanActive] = useState(false);
+  const [activeSupplier, setActiveSupplier] = useState(SUPPLIERS[0]);
+  const [picker, setPicker] = useState(null); // { mpn, matches: [{orderId, itemId, orderLabel}] }
+  const [shipTarget, setShipTarget] = useState(null); // order being shipped via AWB scan
+
+  useEffect(() => {
+    (async () => {
+      try{
+        const res = await window.storage.get(STORAGE_KEY, true);
+        if(res && res.value) setOrders(JSON.parse(res.value));
+      }catch(e){}
+      setLoaded(true);
+    })();
+  }, []);
+
+  const persist = useCallback(async (next) => {
+    setOrders(next);
+    try{
+      const res = await window.storage.set(STORAGE_KEY, JSON.stringify(next), true);
+      setSaveErr(!res);
+    }catch(e){ setSaveErr(true); }
+  }, []);
+
+  const showToast = (text, kind) => setToast({text, kind, id: uid()});
+  useEffect(() => {
+    if(!toast) return;
+    const t = setTimeout(() => setToast(null), 2200);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const updateOrders = (fn) => {
+    setOrders(prev => {
+      const next = fn(prev);
+      persist(next);
+      return next;
+    });
+  };
+
+  const addOrder = (orderNo, client, phone, address, mpns) => {
+    const newOrder = {
+      id: uid(),
+      orderNo: orderNo.trim(),
+      client: client.trim(),
+      phone: (phone||'').trim(),
+      address: (address||'').trim(),
+      items: mpns.filter(m=>m.trim()).map(m => ({ id: uid(), mpn: m.trim(), received: false, receivedAt: null })),
+      shippedAt: null,
+      awb: null,
+      createdAt: Date.now(),
+    };
+    updateOrders(prev => [newOrder, ...prev]);
+    showToast('Comandă #' + orderNo + ' adăugată', 'in');
+  };
+
+  const deleteOrder = (id) => updateOrders(prev => prev.filter(o => o.id !== id));
+
+  const toggleItem = (orderId, itemId) => {
+    updateOrders(prev => prev.map(o => {
+      if(o.id !== orderId) return o;
+      return { ...o, items: o.items.map(it => it.id === itemId ? { ...it, received: !it.received, receivedAt: !it.received ? Date.now() : null } : it) };
+    }));
+  };
+
+  const markShipped = (orderId, awb) => {
+    updateOrders(prev => prev.map(o => o.id === orderId ? { ...o, shippedAt: Date.now(), awb: awb || null } : o));
+    showToast(awb ? ('Expediată — AWB ' + awb) : 'Marcată ca expediată', 'in');
+  };
+  const unmarkShipped = (orderId) => {
+    updateOrders(prev => prev.map(o => o.id === orderId ? { ...o, shippedAt: null, awb: null } : o));
+  };
+
+  const handleScannedMpn = useCallback((code) => {
+    setOrders(currentOrders => {
+      const matches = [];
+      currentOrders.forEach(o => {
+        if(o.shippedAt) return;
+        o.items.forEach(it => {
+          if(!it.received && it.mpn.toLowerCase() === code.toLowerCase()){
+            matches.push({ orderId: o.id, itemId: it.id, orderLabel: '#' + o.orderNo + (o.client ? ' · ' + o.client : '') });
+          }
+        });
+      });
+      if(navigator.vibrate) navigator.vibrate(40);
+      if(matches.length === 0){
+        showToast('Cod ' + code + ' — nicio comandă în așteptare pentru el', 'out');
+      } else if(matches.length === 1){
+        const m = matches[0];
+        persist(currentOrders.map(o => o.id !== m.orderId ? o : {
+          ...o, items: o.items.map(it => it.id === m.itemId ? { ...it, received: true, receivedAt: Date.now(), supplier: activeSupplier } : it)
+        }));
+        showToast('Primit de la ' + activeSupplier + ': ' + code + ' → ' + m.orderLabel, 'in');
+      } else {
+        setPicker({ mpn: code, matches });
+      }
+      return currentOrders;
+    });
+  }, [persist, activeSupplier]);
+
+  const resolvePicker = (orderId, itemId) => {
+    updateOrders(prev => prev.map(o => o.id !== orderId ? o : {
+      ...o, items: o.items.map(it => it.id === itemId ? { ...it, received: true, receivedAt: Date.now(), supplier: activeSupplier } : it)
+    }));
+    showToast('Primit de la ' + activeSupplier + ' → comandă selectată', 'in');
+    setPicker(null);
+  };
+
+  const filteredOrders = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return orders.filter(o => {
+      if(filter !== 'toate' && orderStatus(o) !== filter) return false;
+      if(!q) return true;
+      if(o.orderNo.toLowerCase().includes(q)) return true;
+      if(o.client.toLowerCase().includes(q)) return true;
+      if(o.items.some(it => it.mpn.toLowerCase().includes(q))) return true;
+      return false;
+    }).sort((a,b) => b.createdAt - a.createdAt);
+  }, [orders, search, filter]);
+
+  const counts = useMemo(() => {
+    const c = { toate: orders.length, noua:0, partial:0, gata:0, expediata:0 };
+    orders.forEach(o => c[orderStatus(o)]++);
+    return c;
+  }, [orders]);
+
+  return (
+    <React.Fragment>
+      <div className="topbar">
+        <h1>Comenzi</h1>
+        <span className="tag">{orders.length} comenzi</span>
+      </div>
+
+      <main>
+        {view === 'orders' && (
+          <React.Fragment>
+            <div className="search-bar">
+              <IconSearch/>
+              <input placeholder="Caută nr. comandă, client sau cod MPN..." value={search} onChange={e=>setSearch(e.target.value)} />
+            </div>
+            <div className="filter-row">
+              {['toate','noua','partial','gata','expediata'].map(f => (
+                <button key={f} className={"filter-chip" + (filter===f?' active':'')} onClick={()=>setFilter(f)}>
+                  {f==='toate' ? 'Toate' : STATUS_LABEL[f]} · {counts[f]}
+                </button>
+              ))}
+            </div>
+
+            {!loaded ? (
+              <div className="empty"><p>Se încarcă...</p></div>
+            ) : filteredOrders.length === 0 ? (
+              <div className="empty">
+                <IconEmpty/>
+                <p>Nicio comandă găsită.<br/>Apasă butonul + ca să adaugi una.</p>
+              </div>
+            ) : filteredOrders.map(o => {
+              const status = orderStatus(o);
+              const ret = returnInfo(o);
+              return (
+                <div className="order-card" key={o.id}>
+                  <div className="order-head">
+                    <div>
+                      <div className="order-id">#{o.orderNo}</div>
+                      {o.client && <div className="order-client">{o.client}</div>}
+                      {o.phone && <div className="order-client">{o.phone}</div>}
+                      {o.address && <div className="order-client">{o.address}</div>}
+                    </div>
+                    <span className={"status-badge " + status}>{STATUS_LABEL[status]}</span>
+                  </div>
+
+                  <div>
+                    {o.items.map(it => (
+                      <div className="item-row" key={it.id}>
+                        <button className={"item-check" + (it.received?' checked':'')} onClick={()=>toggleItem(o.id, it.id)}>
+                          {it.received && <IconCheck/>}
+                        </button>
+                        <span className={"item-mpn" + (it.received?' received':'')}>{it.mpn}</span>
+                        {it.received && it.receivedAt && <span style={{fontSize:10, color:'var(--muted)', fontFamily:"'JetBrains Mono'"}}>{it.supplier ? it.supplier + ' · ' : ''}{fmtDate(it.receivedAt)}</span>}
+                      </div>
+                    ))}
+                    {o.items.length === 0 && <div style={{fontSize:12, color:'var(--muted)', padding:'6px 0'}}>Niciun cod adăugat.</div>}
+                  </div>
+
+                  <div className="order-foot">
+                    {!o.shippedAt && (
+                      <React.Fragment>
+                        <button className="btn good sm" disabled={o.items.length===0} onClick={()=>setShipTarget(o)}>Scanează AWB</button>
+                        <button className="btn ghost sm" disabled={o.items.length===0} onClick={()=>markShipped(o.id, null)}>fără AWB</button>
+                      </React.Fragment>
+                    )}
+                    {o.shippedAt && (
+                      <React.Fragment>
+                        <span className="return-pill ok" style={{background:'var(--blue-dim)', color:'var(--blue)'}}>Expediat {fmtDate(o.shippedAt)}</span>
+                        {o.awb && <span className="return-pill ok" style={{background:'var(--surface-2)', color:'var(--text)', fontFamily:"'JetBrains Mono'"}}>AWB {o.awb}</span>}
+                        {ret && (
+                          <span className={"return-pill " + (ret.daysLeft < 0 ? 'over' : ret.daysLeft <= 3 ? 'soon' : 'ok')}>
+                            {ret.daysLeft < 0 ? 'Retur expirat' : 'Retur: ' + ret.daysLeft + ' zile'}
+                          </span>
+                        )}
+                        <button className="btn ghost sm" onClick={()=>unmarkShipped(o.id)}>Anulează expedierea</button>
+                      </React.Fragment>
+                    )}
+                    <button className="btn ghost sm" style={{marginLeft:'auto'}} onClick={()=>{ if(confirm('Ștergi comanda #'+o.orderNo+'?')) deleteOrder(o.id); }}><IconTrash/></button>
+                  </div>
+                </div>
+              );
+            })}
+          </React.Fragment>
+        )}
+
+        {view === 'scan' && (
+          <React.Fragment>
+            <div>
+              <div className="field-label" style={{marginBottom:8}}>Furnizor</div>
+              <div className="filter-row">
+                {SUPPLIERS.map(s => (
+                  <button key={s} className={"filter-chip" + (activeSupplier===s?' active':'')} onClick={()=>setActiveSupplier(s)}>{s}</button>
+                ))}
+              </div>
+            </div>
+            <div className="scanner-card">
+              <ScannerBlock active={scanActive} onCode={handleScannedMpn} readerId="reader-main"
+                hintText={"Scanează codul MPN de pe produsul primit de la " + activeSupplier + " — se caută automat comanda care îl așteaptă."} />
+              <div className="scanner-controls">
+                <button className="btn flex primary" onClick={()=>setScanActive(s=>!s)}>{scanActive ? 'Oprește camera' : 'Pornește camera'}</button>
+              </div>
+            </div>
+            <ManualScan onCode={handleScannedMpn} />
+            {saveErr && <div className="footnote" style={{color:'var(--out)'}}>Salvarea a eșuat — verifică conexiunea.</div>}
+            <div className="footnote">Datele sunt comune tuturor celor care deschid acest link (nu necesită cont).</div>
+          </React.Fragment>
+        )}
+      </main>
+
+      {toast && (
+        <div className="toast show">
+          <span className="dot" style={{background: toast.kind==='in' ? 'var(--in)' : 'var(--out)'}}></span>
+          {toast.text}
+        </div>
+      )}
+
+      {view === 'orders' && (
+        <button className="fab" onClick={()=>setShowNewOrder(true)}>+</button>
+      )}
+
+      <div className="tabbar">
+        <button className={"tab-btn" + (view==='orders'?' active':'')} onClick={()=>setView('orders')}><IconOrders/> Comenzi</button>
+        <button className={"tab-btn" + (view==='scan'?' active':'')} onClick={()=>{setView('scan');}}><IconScan/> Scanează primire</button>
+      </div>
+
+      {showNewOrder && <NewOrderSheet onClose={()=>setShowNewOrder(false)} onSave={addOrder} />}
+      {picker && <PickerSheet picker={picker} onPick={resolvePicker} onClose={()=>setPicker(null)} />}
+      {shipTarget && <ShipSheet order={shipTarget} onClose={()=>setShipTarget(null)} onConfirm={(awb)=>{ markShipped(shipTarget.id, awb); setShipTarget(null); }} />}
+    </React.Fragment>
+  );
+}
+
+function ManualScan({onCode}){
+  const [val, setVal] = useState('');
+  const submit = () => { if(val.trim()){ onCode(val.trim()); setVal(''); } };
+  return (
+    <div className="manual-card">
+      <h3>Introducere manuală cod MPN</h3>
+      <div className="manual-row">
+        <input type="text" placeholder="Cod MPN produs" value={val} onChange={e=>setVal(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter') submit(); }} />
+        <button className="btn primary" onClick={submit}>Marchează primit</button>
+      </div>
+    </div>
+  );
+}
+
+// ---- Live OCR: continuously reads text from the camera feed, no photo needed ----
+function NewOrderSheet({onClose, onSave}){
+  const [orderNo, setOrderNo] = useState('');
+  const [client, setClient] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [mpns, setMpns] = useState([]);
+  const [mpnInput, setMpnInput] = useState('');
+  const [ocrBusy, setOcrBusy] = useState(false);
+  const [ocrErr, setOcrErr] = useState(null);
+  const [ocrRaw, setOcrRaw] = useState('');
+  const fileInputRef = useRef(null);
+  const [mpnOcrBusy, setMpnOcrBusy] = useState(false);
+  const [mpnOcrErr, setMpnOcrErr] = useState(null);
+  const mpnFileInputRef = useRef(null);
+
+  const addMpn = (val) => {
+    const v = (val||'').trim();
+    if(!v) return;
+    setMpns(prev => {
+      if(prev.some(m => m.toLowerCase() === v.toLowerCase())) return prev;
+      return [...prev, v];
+    });
+    setMpnInput('');
+  };
+  const removeMpn = (idx) => setMpns(prev => prev.filter((_,i)=>i!==idx));
+
+  const save = () => {
+    if(!orderNo.trim()) return;
+    onSave(orderNo, client, phone, address, mpns);
+    onClose();
+  };
+
+  const readFileAsDataUrl = (file) => new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = () => rej(new Error('read failed'));
+    r.readAsDataURL(file);
+  });
+
+  // Preprocess: grayscale + contrast stretch + upscale small images — meaningfully
+  // improves Tesseract accuracy, especially on printed catalog pages.
+  const preprocessForOcr = (dataUrl) => new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try{
+        let w = img.width, h = img.height;
+        const longSide = Math.max(w, h);
+        if(longSide > 1800){ const s = 1800/longSide; w = Math.round(w*s); h = Math.round(h*s); }
+        else if(longSide < 1000){ const s = 1400/longSide; w = Math.round(w*s); h = Math.round(h*s); }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const d = imgData.data;
+        let min = 255, max = 0;
+        for(let i=0; i<d.length; i+=4){
+          const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+          d[i]=d[i+1]=d[i+2]=g;
+          if(g<min) min=g; if(g>max) max=g;
+        }
+        const range = Math.max(1, max-min);
+        for(let i=0; i<d.length; i+=4){
+          const v = (d[i]-min) * 255/range;
+          d[i]=d[i+1]=d[i+2]=v;
+        }
+        ctx.putImageData(imgData, 0, 0);
+        resolve(canvas.toDataURL('image/jpeg', 0.92));
+      }catch(e){ resolve(dataUrl); }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+
+  const handlePhoto = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    setOcrBusy(true); setOcrErr(null); setOcrRaw('');
+    try{
+      const rawDataUrl = await readFileAsDataUrl(file);
+      const dataUrl = await preprocessForOcr(rawDataUrl);
+      const worker = await Tesseract.createWorker('ron');
+      const { data: { text } } = await worker.recognize(dataUrl);
+      await worker.terminate();
+      const parsed = parseOrderText(text);
+      if(parsed.orderNo) setOrderNo(parsed.orderNo);
+      if(parsed.client) setClient(parsed.client);
+      if(parsed.phone) setPhone(parsed.phone);
+      if(parsed.address) setAddress(parsed.address);
+      setOcrRaw(text.trim());
+      if(!parsed.orderNo && !parsed.client && !parsed.address){
+        setOcrErr('Nu am recunoscut date clare — verifică textul de mai jos și completează manual.');
+      }
+    }catch(err){
+      setOcrErr('Nu am putut citi textul din poză. Completează manual.');
+    }
+    setOcrBusy(false);
+    if(fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleMpnPhoto = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    setMpnOcrBusy(true); setMpnOcrErr(null);
+    try{
+      const rawDataUrl = await readFileAsDataUrl(file);
+      const dataUrl = await preprocessForOcr(rawDataUrl);
+      const worker = await Tesseract.createWorker('eng');
+      await worker.setParameters({
+        tessedit_pageseg_mode: '7',
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-./'
+      });
+      const { data: { text } } = await worker.recognize(dataUrl);
+      await worker.terminate();
+      const code = parseMpnText(text);
+      const bestGuess = code || text.replace(/\s+/g,' ').trim();
+      setMpnInput(bestGuess);
+      if(!code){
+        setMpnOcrErr('Nu am fost sigur ce e codul — am pus tot ce am citit în câmp, editează-l și apasă „Adaugă”.');
+      }
+    }catch(err){
+      setMpnOcrErr('Nu am putut citi textul din poză. Tastează codul manual.');
+    }
+    setMpnOcrBusy(false);
+    if(mpnFileInputRef.current) mpnFileInputRef.current.value = '';
+  };
+
+  return (
+    <div className="overlay" onClick={(e)=>{ if(e.target===e.currentTarget) onClose(); }}>
+      <div className="sheet">
+        <div className="sheet-head">
+          <h2>Comandă nouă</h2>
+          <button className="sheet-close" onClick={onClose}><IconClose/></button>
+        </div>
+
+        <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={handlePhoto} />
+        <button className="ocr-btn" disabled={ocrBusy} onClick={()=>fileInputRef.current && fileInputRef.current.click()}>
+          {ocrBusy ? (<React.Fragment><span className="spinner"></span> Se citește textul din poză...</React.Fragment>) : (<React.Fragment><IconCamera style={{width:18, height:18}}/> Fotografiază ecranul din PrestaShop</React.Fragment>)}
+        </button>
+        {ocrErr && <div className="ocr-note" style={{color:'var(--out)'}}>{ocrErr}</div>}
+        {ocrRaw && (
+          <div>
+            <div className="ocr-note" style={{textAlign:'left', padding:0, marginBottom:4}}>Text recunoscut (verifică și corectează câmpurile de mai jos dacă e nevoie):</div>
+            <div className="ocr-raw" style={{maxHeight:140}}>{ocrRaw}</div>
+          </div>
+        )}
+        <div className="ocr-note">Fă poza de aproape, cu textul cât mai mare în cadru și bine luminat — crește mult acuratețea.</div>
+
+        <div className="field">
+          <div className="field-label">Nr. comandă</div>
+          <input type="text" placeholder="ex. 156" value={orderNo} onChange={e=>setOrderNo(e.target.value)} />
+        </div>
+        <div className="field">
+          <div className="field-label">Client (opțional)</div>
+          <input type="text" placeholder="ex. Jurca Nicolae" value={client} onChange={e=>setClient(e.target.value)} />
+        </div>
+        <div className="field">
+          <div className="field-label">Telefon (opțional)</div>
+          <input type="text" placeholder="ex. 0746125658" value={phone} onChange={e=>setPhone(e.target.value)} />
+        </div>
+        <div className="field">
+          <div className="field-label">Adresă livrare (opțional)</div>
+          <textarea className="addr" placeholder="Stradă, oraș, județ, cod poștal" value={address} onChange={e=>setAddress(e.target.value)} />
+        </div>
+
+        <div className="field">
+          <div className="field-label">Coduri MPN necesare</div>
+          <div className="mpn-list">
+            {mpns.map((m, idx) => (
+              <div className="mpn-chip" key={idx}>
+                <span>{m}</span>
+                <button className="item-del" onClick={()=>removeMpn(idx)}><IconTrash/></button>
+              </div>
+            ))}
+          </div>
+          <div className="add-mpn-row" style={{marginTop: mpns.length?8:0}}>
+            <input type="text" placeholder="Adaugă cod MPN" value={mpnInput} onChange={e=>setMpnInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'){ e.preventDefault(); addMpn(mpnInput);} }} style={{flex:1, background:'var(--surface)', border:'1px solid var(--line)', borderRadius:10, padding:12, color:'var(--text)', fontFamily:"'JetBrains Mono'", fontSize:14}} />
+            <button className="btn sm" onClick={()=>addMpn(mpnInput)}>Adaugă</button>
+          </div>
+          <input ref={mpnFileInputRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={handleMpnPhoto} />
+          <button className="ocr-btn" style={{marginTop:8}} disabled={mpnOcrBusy} onClick={()=>mpnFileInputRef.current && mpnFileInputRef.current.click()}>
+            {mpnOcrBusy ? (<React.Fragment><span className="spinner"></span> Se citește codul din poză...</React.Fragment>) : (<React.Fragment><IconCamera style={{width:18, height:18}}/> Fotografiază cod MPN (ecran/catalog)</React.Fragment>)}
+          </button>
+          {mpnOcrErr && <div className="ocr-note" style={{color:'var(--out)'}}>{mpnOcrErr}</div>}
+        </div>
+
+        <div className="scanner-card">
+          <ScannerBlockWrapper onCode={(code)=>addMpn(code)} />
+        </div>
+
+        <button className="btn primary flex" disabled={!orderNo.trim()} onClick={save}>Salvează comanda</button>
+      </div>
+    </div>
+  );
+}
+
+function ScannerBlockWrapper({onCode}){
+  const [scanActive, setScanActive] = useState(false);
+  return (
+    <React.Fragment>
+      <ScannerBlock active={scanActive} onCode={onCode} readerId="reader-neworder" hintText="Scanează un cod de bare real, dacă produsul are unul." />
+      <div className="scanner-controls">
+        <button className="btn flex" onClick={()=>setScanActive(s=>!s)}>{scanActive ? 'Oprește camera' : 'Scanează cod de bare'}</button>
+      </div>
+    </React.Fragment>
+  );
+}
+
+function ShipSheet({order, onClose, onConfirm}){
+  const [scanActive, setScanActive] = useState(false);
+  const [awbInput, setAwbInput] = useState('');
+
+  const handleCode = (code) => {
+    onConfirm(code);
+  };
+
+  return (
+    <div className="overlay" onClick={(e)=>{ if(e.target===e.currentTarget) onClose(); }}>
+      <div className="sheet">
+        <div className="sheet-head">
+          <h2>Scanează AWB</h2>
+          <button className="sheet-close" onClick={onClose}><IconClose/></button>
+        </div>
+        <div className="footnote" style={{textAlign:'left', padding:0}}>Comanda <b style={{color:'var(--text)'}}>#{order.orderNo}</b>{order.client ? ' · ' + order.client : ''} — scanează codul de bare de pe eticheta de expediere. Comanda se marchează automat ca expediată.</div>
+
+        <div className="scanner-card">
+          <ScannerBlock active={scanActive} onCode={handleCode} readerId="reader-awb" hintText="Scanează codul de bare AWB de pe eticheta curierului." />
+          <div className="scanner-controls">
+            <button className="btn flex primary" onClick={()=>setScanActive(s=>!s)}>{scanActive ? 'Oprește camera' : 'Pornește camera'}</button>
+          </div>
+        </div>
+
+        <div className="manual-card">
+          <h3>Sau introdu manual</h3>
+          <div className="manual-row">
+            <input type="text" placeholder="Număr AWB" value={awbInput} onChange={e=>setAwbInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter' && awbInput.trim()) onConfirm(awbInput.trim()); }} />
+            <button className="btn primary" disabled={!awbInput.trim()} onClick={()=>onConfirm(awbInput.trim())}>Confirmă</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PickerSheet({picker, onPick, onClose}){
+  return (
+    <div className="overlay" onClick={(e)=>{ if(e.target===e.currentTarget) onClose(); }}>
+      <div className="sheet">
+        <div className="sheet-head">
+          <h2>Alege comanda</h2>
+          <button className="sheet-close" onClick={onClose}><IconClose/></button>
+        </div>
+        <div className="footnote" style={{textAlign:'left', padding:0}}>Codul <b style={{color:'var(--text)'}}>{picker.mpn}</b> e așteptat de mai multe comenzi. Alege pentru care a sosit produsul:</div>
+        <div style={{display:'flex', flexDirection:'column', gap:8}}>
+          {picker.matches.map((m, idx) => (
+            <button key={idx} className="pick-option" onClick={()=>onPick(m.orderId, m.itemId)}>
+              <b>{m.orderLabel}</b>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
